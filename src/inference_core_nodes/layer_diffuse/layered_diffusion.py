@@ -323,8 +323,22 @@ class LayeredDiffusionBase:
             model_dir=layer_model_root,
             file_name=self.model_file_name,
         )
+        def pad_diff_weight(v):
+            # ComfyUI reads the second element of a "diff" patch as its options dict, while
+            # to_lora_patch_dict pads the weight list with None. Carry the pad_weight flag
+            # the transparent layer weights need instead.
+            if len(v) == 1:
+                return ("diff", [v[0], {"pad_weight": True}])
+            elif len(v) == 2 and v[0] == "diff":
+                return ("diff", [v[1][0], {"pad_weight": True}])
+            else:
+                return v
+
         layer_lora_state_dict = load_layer_model_state_dict(model_path)
-        layer_lora_patch_dict = to_lora_patch_dict(layer_lora_state_dict)
+        layer_lora_patch_dict = {
+            k: pad_diff_weight(v)
+            for k, v in to_lora_patch_dict(layer_lora_state_dict).items()
+        }
         work_model = model.clone()
         work_model.add_patches(layer_lora_patch_dict, weight)
         return (work_model,)

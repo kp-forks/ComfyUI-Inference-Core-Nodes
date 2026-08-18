@@ -1,6 +1,6 @@
 __all__ = ("__version__", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS")
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 
 def _get_node_mappings():
