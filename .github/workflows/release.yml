@@ -1,0 +1,55 @@
+name: Release
+
+# Stability Matrix resolves an installed extension's version with
+# `git describe --tags`, so an untagged version bump is invisible to every user
+# (0.5.0 and 0.5.1 shipped that way and nobody was ever offered the update).
+# Tag and release straight off the version bump instead of remembering to.
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/inference_core_nodes/__init__.py"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read package version
+        id: version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/inference_core_nodes/__init__.py)
+          if [ -z "$version" ]; then
+            echo "::error::Could not read __version__ from src/inference_core_nodes/__init__.py"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Package version: $version"
+
+      - name: Check whether the tag already exists
+        id: check
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${{ steps.version.outputs.tag }} already exists, nothing to release"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" --title "$TAG" --generate-notes
